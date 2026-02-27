@@ -391,12 +391,15 @@ def main() -> None:
 
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     st.sidebar.subheader("Exportar reporte")
+    meses = ("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+             "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre")
+    report_filename = f"Reporte_Tickets_GC_{meses[datetime.now().month - 1]}.html"
     with st.spinner("Preparando reporte…"):
         report_html = build_html_report(filtered_df, float(sla_threshold_hours), embed_plotly=False)
     st.sidebar.download_button(
         "Descargar reporte (rápido)",
         data=report_html.encode("utf-8"),
-        file_name="dashboard_report.html",
+        file_name=report_filename,
         mime="text/html",
     )
     st.sidebar.caption("Archivo pequeño (~100 KB). Necesita internet para ver las gráficas.")
@@ -408,7 +411,7 @@ def main() -> None:
         st.sidebar.download_button(
             "Descargar versión completa (~4 MB)",
             data=st.session_state.report_full.encode("utf-8"),
-            file_name="dashboard_report_completo.html",
+            file_name=report_filename.replace(".html", "_completo.html"),
             mime="text/html",
             key="dl_full",
         )
