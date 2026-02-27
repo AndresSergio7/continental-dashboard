@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+venv/
+.venv/
+env/
+
+# Datos sensibles (no subir a GitHub)
+*.csv
+*.xlsx
+data/*.csv
+data/*.xlsx
+outputs/
+
+# Configuración local
+.env
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
