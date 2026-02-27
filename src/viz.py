@@ -111,6 +111,8 @@ def bar_client_pending_aging(bucket_df: pd.DataFrame) -> go.Figure:
 
 
 def dual_line_created_vs_resolved(daily_df: pd.DataFrame) -> go.Figure:
+    # Azul oscuro y celeste oscuro para diferenciar las dos líneas
+    colors = ["#1e3a5f", "#0d9488"]
     fig = go.Figure()
     if daily_df.empty:
         fig.update_layout(title="Tickets creados vs cerrados por día")
@@ -121,6 +123,8 @@ def dual_line_created_vs_resolved(daily_df: pd.DataFrame) -> go.Figure:
             y=daily_df["created"],
             mode="lines+markers",
             name="Creados",
+            line=dict(color=colors[0]),
+            marker=dict(color=colors[0]),
         )
     )
     fig.add_trace(
@@ -129,6 +133,8 @@ def dual_line_created_vs_resolved(daily_df: pd.DataFrame) -> go.Figure:
             y=daily_df["resolved"],
             mode="lines+markers",
             name="Cerrados",
+            line=dict(color=colors[1]),
+            marker=dict(color=colors[1]),
         )
     )
     fig.update_layout(

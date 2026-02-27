@@ -107,10 +107,14 @@ def build_html_report(df: pd.DataFrame, sla_threshold_hours: float, embed_plotly
         yaxis=dict(gridcolor="rgba(200,200,200,0.5)"),
     )
 
-    def apply_blue_theme(fig):
+    # Colores diferenciados para Creados vs Cerrados (azul y celeste/teal)
+    CREATED_RESOLVED_COLORS = ["#1e3a5f", "#0d9488"]  # azul oscuro, celeste oscuro
+
+    def apply_blue_theme(fig, chart_name: str = ""):
         fig.update_layout(**report_theme)
+        palette = CREATED_RESOLVED_COLORS if "creados vs cerrados" in chart_name.lower() and len(fig.data) == 2 else BLUE_PALETTE
         for j, trace in enumerate(fig.data):
-            color = BLUE_PALETTE[j % len(BLUE_PALETTE)]
+            color = palette[j % len(palette)]
             if trace.type == "bar" or trace.type == "histogram":
                 trace.update(marker_color=color, marker_line_color=color)
             else:
@@ -130,8 +134,8 @@ def build_html_report(df: pd.DataFrame, sla_threshold_hours: float, embed_plotly
         ("Tickets abiertos por antigüedad", bar_counts(aging_buckets_open_tickets(df), x_col="aging_bucket", y_col="count", title="Tickets abiertos por antigüedad", xaxis_title="Rango de horas", yaxis_title="Cantidad")),
         ("Creados vs cerrados", dual_line_created_vs_resolved(created_vs_resolved_per_day(df))),
     ]
-    for i, (_, fig) in enumerate(chart_data):
-        apply_blue_theme(fig)
+    for i, (name, fig) in enumerate(chart_data):
+        apply_blue_theme(fig, name)
         inc_plotly = (True if i == 0 else False) if embed_plotly else False
         charts.append(fig.to_html(full_html=False, include_plotlyjs=inc_plotly, div_id=f"chart_{i}"))
 
