@@ -393,7 +393,9 @@ def main() -> None:
     st.sidebar.subheader("Exportar reporte")
     meses = ("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre")
-    report_filename = f"Reporte_Tickets_GC_{meses[datetime.now().month - 1]}.html"
+    now = datetime.now()
+    mes_anterior = 12 if now.month == 1 else now.month - 1
+    report_filename = f"Reporte_Tickets_GC_{meses[mes_anterior - 1]}.html"
     with st.spinner("Preparando reporte…"):
         report_html = build_html_report(filtered_df, float(sla_threshold_hours), embed_plotly=False)
     st.sidebar.download_button(
