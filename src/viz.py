@@ -143,3 +143,42 @@ def dual_line_created_vs_resolved(daily_df: pd.DataFrame) -> go.Figure:
         yaxis_title="Cantidad",
     )
     return fig
+
+
+def grouped_month_comparison(
+    comparison_df: pd.DataFrame,
+    category_col: str,
+    title: str,
+) -> go.Figure:
+    if comparison_df.empty:
+        return go.Figure(layout={"title": title or "Sin datos para comparar"})
+    fig = px.bar(
+        comparison_df,
+        x=category_col,
+        y="count",
+        color="Mes",
+        barmode="group",
+        title=title,
+        color_discrete_map={"Mes actual": "#1e3a5f", "Mes anterior": "#0d9488"},
+    )
+    fig.update_layout(xaxis_title=category_col, yaxis_title="Tickets", legend_title="Periodo")
+    return fig
+
+
+def horizontal_distribution(
+    count_df: pd.DataFrame,
+    category_col: str,
+    title: str,
+) -> go.Figure:
+    if count_df.empty:
+        return go.Figure(layout={"title": title or "Sin datos"})
+    fig = px.bar(
+        count_df.sort_values("count", ascending=True),
+        x="count",
+        y=category_col,
+        orientation="h",
+        title=title,
+        color_discrete_sequence=["#2c5282"],
+    )
+    fig.update_layout(xaxis_title="Tickets", yaxis_title="")
+    return fig

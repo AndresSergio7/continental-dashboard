@@ -288,3 +288,173 @@ def sla_compliance(df: pd.DataFrame, threshold_hours: float = 48.0) -> dict[str,
         "resolved_count": total,
         "within_sla_count": within,
     }
+
+
+def month_label(month_period: pd.Period) -> str:
+    month_map = {
+        1: "enero",
+        2: "febrero",
+        3: "marzo",
+        4: "abril",
+        5: "mayo",
+        6: "junio",
+        7: "julio",
+        8: "agosto",
+        9: "septiembre",
+        10: "octubre",
+        11: "noviembre",
+        12: "diciembre",
+    }
+    return f"{month_map.get(int(month_period.month), str(month_period.month))} {month_period.year}"
+
+
+def detect_report_months(df: pd.DataFrame) -> tuple[pd.Period | None, pd.Period | None, list[pd.Period]]:
+    if df.empty or "Created_dt" not in df.columns:
+        return None, None, []
+    months = (
+        pd.Series(df["Created_dt"].dropna().dt.to_period("M").unique())
+        .sort_values()
+        .tolist()
+    )
+    if not months:
+        return None, None, []
+    current = months[-1]
+    previous = months[-2] if len(months) > 1 else None
+    return current, previous, months
+
+
+def filter_by_month(df: pd.DataFrame, month_period: pd.Period | None) -> pd.DataFrame:
+    if month_period is None or df.empty or "Created_dt" not in df.columns:
+        return df.iloc[0:0].copy()
+    mask = df["Created_dt"].dt.to_period("M") == month_period
+    return df[mask].copy()
+
+
+def monthly_kpis(df_current: pd.DataFrame, df_previous: pd.DataFrame | None = None) -> dict[str, float | int | str | None]:
+    previous_total = int(len(df_previous)) if df_previous is not None else 0
+    current_total = int(len(df_current))
+    delta_abs = current_total - previous_total
+    delta_pct = ((delta_abs / previous_total) * 100) if previous_total else None
+
+    status_lower = df_current.get("Status", pd.Series("", index=df_current.index)).astype(str).str.lower().str.strip()
+    resolved_mask = status_lower.isin({"done", "closed", "resuelto", "resuelta", "resolved", "cerrado", "cerrada"})
+    resolved_count = int(resolved_mask.sum())
+    resolution_rate = (resolved_count / current_total * 100) if current_total else None
+
+    def _top_value(column: str) -> str:
+        if column not in df_current.columns or df_current.empty:
+            return "N/A"
+        counts = df_current[column].fillna("Sin dato").astype(str).value_counts()
+        return str(counts.index[0]) if not counts.empty else "N/A"
+
+    return {
+        "tickets_actual": current_total,
+        "tickets_prev": previous_total,
+        "delta_abs": delta_abs,
+        "delta_pct": round(delta_pct, 1) if delta_pct is not None else None,
+        "resueltos": resolved_count,
+        "tasa_resolucion": round(resolution_rate, 1) if resolution_rate is not None else None,
+        "agencias_activas": int(df_current.get("Agencia", pd.Series(dtype=str)).replace("", np.nan).dropna().nunique()),
+        "departamentos_activos": int(df_current.get("Departamento", pd.Series(dtype=str)).replace("", np.nan).dropna().nunique()),
+        "top_urgencia": _top_value("Urgencia"),
+        "top_agencia": _top_value("Agencia"),
+        "top_error": _top_value("Tipo de Error"),
+    }
+
+
+def compare_category_months(
+    df_current: pd.DataFrame,
+    df_previous: pd.DataFrame,
+    category_col: str,
+    top_n: int | None = None,
+) -> pd.DataFrame:
+    if category_col not in df_current.columns and category_col not in df_previous.columns:
+        return pd.DataFrame(columns=[category_col, "Mes", "count"])
+
+    cur = df_current.get(category_col, pd.Series(index=df_current.index, dtype=str)).fillna("Sin dato").astype(str)
+    prev = df_previous.get(category_col, pd.Series(index=df_previous.index, dtype=str)).fillna("Sin dato").astype(str)
+
+    cur_counts = cur.value_counts().rename("actual")
+    prev_counts = prev.value_counts().rename("anterior")
+    merged = pd.concat([cur_counts, prev_counts], axis=1).fillna(0).astype(int)
+    merged["delta"] = merged["actual"] - merged["anterior"]
+    merged = merged.sort_values(["actual", "anterior"], ascending=False)
+    if top_n is not None:
+        merged = merged.head(top_n)
+    merged = merged.reset_index().rename(columns={"index": category_col})
+
+    long_df = merged.melt(
+        id_vars=[category_col],
+        value_vars=["actual", "anterior"],
+        var_name="Mes",
+        value_name="count",
+    )
+    long_df["Mes"] = long_df["Mes"].map({"actual": "Mes actual", "anterior": "Mes anterior"})
+    return long_df
+
+
+def composition_change_summary(df_current: pd.DataFrame, df_previous: pd.DataFrame, category_col: str) -> dict[str, str | int]:
+    cur_counts = df_current.get(category_col, pd.Series(index=df_current.index, dtype=str)).fillna("Sin dato").astype(str).value_counts()
+    prev_counts = df_previous.get(category_col, pd.Series(index=df_previous.index, dtype=str)).fillna("Sin dato").astype(str).value_counts()
+    merged = pd.concat([cur_counts.rename("actual"), prev_counts.rename("anterior")], axis=1).fillna(0).astype(int)
+    if merged.empty:
+        return {"categoria": category_col, "mayor_alza": "N/A", "valor_alza": 0, "mayor_baja": "N/A", "valor_baja": 0}
+    merged["delta"] = merged["actual"] - merged["anterior"]
+    max_row = merged.sort_values("delta", ascending=False).head(1)
+    min_row = merged.sort_values("delta", ascending=True).head(1)
+    return {
+        "categoria": category_col,
+        "mayor_alza": str(max_row.index[0]),
+        "valor_alza": int(max_row["delta"].iloc[0]),
+        "mayor_baja": str(min_row.index[0]),
+        "valor_baja": int(min_row["delta"].iloc[0]),
+    }
+
+
+def generate_monthly_insights(
+    kpis: dict[str, float | int | str | None],
+    df_current: pd.DataFrame,
+    df_previous: pd.DataFrame | None = None,
+) -> list[str]:
+    insights: list[str] = []
+    delta_pct = kpis.get("delta_pct")
+    current_total = int(kpis.get("tickets_actual", 0))
+    if delta_pct is None:
+        insights.append(f"Se registraron {current_total} tickets en el mes analizado, sin base previa para comparación.")
+    elif delta_pct >= 0:
+        insights.append(f"El volumen mensual subió {delta_pct:.1f}% frente al mes anterior.")
+    else:
+        insights.append(f"El volumen mensual bajó {abs(delta_pct):.1f}% frente al mes anterior.")
+
+    top_urg = str(kpis.get("top_urgencia", "N/A"))
+    if top_urg != "N/A":
+        urg_share = (
+            df_current["Urgencia"].fillna("Sin dato").astype(str).value_counts(normalize=True).get(top_urg, 0.0) * 100
+            if "Urgencia" in df_current.columns and len(df_current)
+            else 0.0
+        )
+        insights.append(f"La urgencia predominante fue {top_urg} con una participación del {urg_share:.1f}% del total.")
+
+    top_agencia = str(kpis.get("top_agencia", "N/A"))
+    if top_agencia != "N/A" and "Agencia" in df_current.columns and len(df_current):
+        agency_share = df_current["Agencia"].fillna("Sin dato").astype(str).value_counts(normalize=True).get(top_agencia, 0.0) * 100
+        if agency_share >= 30:
+            insights.append(f"La agencia {top_agencia} concentró una carga alta ({agency_share:.1f}% de los tickets).")
+        else:
+            insights.append(f"La agencia con más casos fue {top_agencia} ({agency_share:.1f}% del total mensual).")
+
+    top_error = str(kpis.get("top_error", "N/A"))
+    if top_error != "N/A":
+        insights.append(f"El tipo de error más recurrente fue {top_error}.")
+
+    rate = kpis.get("tasa_resolucion")
+    if rate is not None:
+        insights.append(f"La tasa de resolución del mes fue {float(rate):.1f}% de tickets creados.")
+
+    if df_previous is not None and not df_previous.empty and "Tipo de Error" in df_current.columns:
+        summary_error = composition_change_summary(df_current, df_previous, "Tipo de Error")
+        if summary_error["valor_alza"] > 0:
+            insights.append(
+                f"El error con mayor incremento fue {summary_error['mayor_alza']} (+{summary_error['valor_alza']} tickets)."
+            )
+    return insights[:5]

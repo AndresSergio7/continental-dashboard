@@ -18,6 +18,9 @@ REQUIRED_COLUMNS = [
 OPTIONAL_COLUMNS = [
     "Issue Type",
     "Agencia",
+    "Urgencia",
+    "Departamento",
+    "Tipo de Error",
     "Last Updated",
     "Updated",
 ]
@@ -26,6 +29,9 @@ OPTIONAL_COLUMNS = [
 COLUMN_ALIASES = {
     "Custom field (Agencia que reporta)": "Agencia",
     "Custom field (Tipo de solicitud)": "Tipo",
+    "Custom field (Nivel de urgencia)": "Urgencia",
+    "Custom field (Departamento)": "Departamento",
+    "Tipo de Error": "Tipo de Error",
     "Last Viewed": "Last Updated",
 }
 
